@@ -42,6 +42,8 @@
 #include "App.h"
 #include "Enclave_u.h"
 
+#include <sys/mman.h>
+
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
 
@@ -227,6 +229,24 @@ void ocall_print_string(const char *str)
     printf("%s", str);
 }
 
+void ocall_sleep(int time)
+{
+	sleep(time);
+}
+
+void* create_shared_memory(size_t size) {
+  // Our memory buffer will be readable and writable:
+  int protection = PROT_READ | PROT_WRITE;
+
+  // The buffer will be shared (meaning other processes can access it), but
+  // anonymous (meaning third-party processes cannot obtain an address for it),
+  // so only this process and its children will be able to use it:
+  int visibility = MAP_ANONYMOUS | MAP_SHARED;
+
+  // The remaining parameters to `mmap()` are not important for this use case,
+  // but the manpage for `mmap` explains their purpose.
+  return mmap(NULL, size, protection, visibility, 0, 0);
+}
 
 /* Application entry */
 int SGX_CDECL main(int argc, char *argv[])
@@ -236,30 +256,50 @@ int SGX_CDECL main(int argc, char *argv[])
 
 
     /* Initialize the enclave */
-    if(initialize_enclave() < 0){
-        printf("Enter a character before exit ...\n");
-        getchar();
-        return -1; 
-    }
  
-    /* Utilize edger8r attributes */
-    edger8r_array_attributes();
-    edger8r_pointer_attributes();
-    edger8r_type_attributes();
-    edger8r_function_attributes();
-    
-    /* Utilize trusted libraries */
-    ecall_libc_functions();
-    ecall_libcxx_functions();
-    ecall_thread_functions();
-
+//    /* Utilize edger8r attributes */
+//    edger8r_array_attributes();
+//    edger8r_pointer_attributes();
+//    edger8r_type_attributes();
+//    edger8r_function_attributes();
+//    
+//    /* Utilize trusted libraries */
+//    ecall_libc_functions();
+//    ecall_libcxx_functions();
+//    ecall_thread_functions();
+//
     /* Destroy the enclave */
+
+    char* parent_message = "hello";  // parent process will write this message
+    char* child_message = "goodbye"; // child process will then write this one
+  
+    void* shmem = create_shared_memory(128);
+  
+    memcpy(shmem, parent_message, sizeof(parent_message));
+  
+    int pid = fork();
+  
+    if (pid == 0) {
+		//Producer enclave
+	    if(initialize_enclave() < 0){
+	        printf("Enter a character before exit ...\n");
+	        getchar();
+	        return -1; 
+	    }
+		ecall_test_producer(global_eid, shmem);
+  
+    } else {
+		//Consumer enclave
+	    if(initialize_enclave() < 0){
+	        printf("Enter a character before exit ...\n");
+	        getchar();
+	        return -1; 
+	    }
+		ecall_test_consumer(global_eid, shmem);
+    }
+	sleep(1);
     sgx_destroy_enclave(global_eid);
     
-    printf("Info: SampleEnclave successfully returned.\n");
-
-    printf("Enter a character before exit ...\n");
-    getchar();
     return 0;
 }
 

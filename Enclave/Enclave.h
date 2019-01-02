@@ -41,6 +41,7 @@ extern "C" {
 #endif
 
 void printf(const char *fmt, ...);
+void sleep(int time);
 
 #if defined(__cplusplus)
 }

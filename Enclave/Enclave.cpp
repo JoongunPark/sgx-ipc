@@ -32,10 +32,32 @@
 
 #include <stdarg.h>
 #include <stdio.h>      /* vsnprintf */
+#include <string.h>      /* vsnprintf */
 
 #include "Enclave.h"
 #include "Enclave_t.h"  /* print_string */
 
+char* parent_message = "hello";  // parent process will write this message
+char* child_message = "goodbye"; // child process will then write this one
+
+void ecall_test_consumer(void *buf)
+{
+	printf("Child read: %s\n", (char *)buf);
+	memcpy(buf, child_message, sizeof(child_message));
+	printf("Child wrote: %s\n", (char *)buf);
+}
+
+void ecall_test_producer(void *buf)
+{
+	printf("Parent read: %s\n", (char *)buf);
+	sleep(1);
+	printf("After 1s, parent read: %s\n", (char *)buf);
+}
+
+void sleep(int time)
+{
+	ocall_sleep(time);
+}
 /* 
  * printf: 
  *   Invokes OCALL to display the enclave buffer to the terminal.
