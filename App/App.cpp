@@ -232,7 +232,8 @@ void ocall_print_string(const char *str)
 
 void ocall_sleep(int time)
 {
-	sleep(time);
+	//usleep(time);
+	usleep(10);
 }
 
 void* create_shared_memory(size_t size) {

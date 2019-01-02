@@ -120,12 +120,14 @@ void ecall_test_consumer(void *buf)
 {
 	initialize_queue(buf);
 
-	int cnt = 0, total = 128;
+	int cnt = 0, total = 700;
 	struct queue_head* head = NULL;
 	while(total){
 		cnt++;
-		if(cnt > 3)
+		if(cnt > 3){
 			sleep(1);
+			cnt = 0;
+		}
 		head = queue_get(root);	
 		if(head != NULL)
 		{
@@ -146,12 +148,12 @@ void ecall_test_producer(void *buf)
 	int i;
 	initialize_queue(buf);
 	printf("Put start\n");
-	for (i=0; i < 128; i++) {
+	for (i=0; i < 700; i++) {
 		struct queue_head *item = (struct queue_head*)((void *)QUEUE_POS + i*sizeof(struct queue_head));
 		INIT_QUEUE_HEAD(item);
-		snprintf(item->buf, 128, "i = %d", i);
+		snprintf(item->buf, 128, "Pop i = %d", i);
 		queue_put(item, root);
-		//printf("Put %s\n", item->buf);
+		printf("Put %s\n", item->buf);
 	}
 	printf("Put done\n");
 //	sleep(1);
