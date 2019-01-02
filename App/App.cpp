@@ -313,6 +313,9 @@ int SGX_CDECL main(int argc, char *argv[])
 	    }
 		ALLOC_QUEUE_ROOT(shmem);
 		ecall_test_producer(global_eid, shmem);
+
+	   printf("My process ID : %d\n", getpid());
+	   printf("My parent's ID: %d\n", getppid());
   
     } else {
 		//Consumer enclave
@@ -323,6 +326,9 @@ int SGX_CDECL main(int argc, char *argv[])
 	    }
 		ALLOC_QUEUE_ROOT(shmem);
 		ecall_test_consumer(global_eid, shmem);
+
+	   printf("My process ID : %d\n", getpid());
+	   printf("My parent's ID: %d\n", getppid());
     }
     sgx_destroy_enclave(global_eid);
     
