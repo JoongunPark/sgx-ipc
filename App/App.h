@@ -67,6 +67,21 @@ void ecall_libc_functions(void);
 void ecall_libcxx_functions(void);
 void ecall_thread_functions(void);
 
+struct queue_root;
+
+struct queue_head {
+	struct queue_head *next;
+	char buf[128];
+};
+
+struct queue_root *ALLOC_QUEUE_ROOT(void *shmem);
+//void INIT_QUEUE_HEAD(struct queue_head *head);
+//
+//void queue_put(struct queue_head *new_node,
+//	       struct queue_root *root);
+//
+//struct queue_head *queue_get(struct queue_root *root);
+
 #if defined(__cplusplus)
 }
 #endif

@@ -43,6 +43,7 @@
 #include "Enclave_u.h"
 
 #include <sys/mman.h>
+#include <pthread.h>
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -248,6 +249,29 @@ void* create_shared_memory(size_t size) {
   return mmap(NULL, size, protection, visibility, 0, 0);
 }
 
+struct queue_root {
+	struct queue_head *in_queue;
+	struct queue_head *out_queue;
+	pthread_mutex_t lock;
+};
+
+struct queue_root *ALLOC_QUEUE_ROOT(void *shmem)
+{
+	int ret = 0; 
+	struct queue_root* root = (struct queue_root *)shmem; 	
+	//set mutexattr for sharing
+	pthread_mutexattr_t mattr;
+	pthread_mutexattr_init(&mattr);
+	//pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_ERRORCHECK_NP);
+	pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+
+	pthread_mutex_init(&root->lock, &mattr);
+
+	root->in_queue = NULL;
+	root->out_queue = NULL;
+	return root;
+}
+
 /* Application entry */
 int SGX_CDECL main(int argc, char *argv[])
 {
@@ -273,7 +297,8 @@ int SGX_CDECL main(int argc, char *argv[])
     char* parent_message = "hello";  // parent process will write this message
     char* child_message = "goodbye"; // child process will then write this one
   
-    void* shmem = create_shared_memory(128);
+    void* shmem = create_shared_memory(sizeof(struct queue_root) 
+					+ sizeof(struct queue_head) * 1024);
   
     memcpy(shmem, parent_message, sizeof(parent_message));
   
@@ -286,6 +311,7 @@ int SGX_CDECL main(int argc, char *argv[])
 	        getchar();
 	        return -1; 
 	    }
+		ALLOC_QUEUE_ROOT(shmem);
 		ecall_test_producer(global_eid, shmem);
   
     } else {
@@ -295,9 +321,9 @@ int SGX_CDECL main(int argc, char *argv[])
 	        getchar();
 	        return -1; 
 	    }
+		ALLOC_QUEUE_ROOT(shmem);
 		ecall_test_consumer(global_eid, shmem);
     }
-	sleep(1);
     sgx_destroy_enclave(global_eid);
     
     return 0;

@@ -32,26 +32,130 @@
 
 #include <stdarg.h>
 #include <stdio.h>      /* vsnprintf */
-#include <string.h>      /* vsnprintf */
+#include <string.h>      
+#include <sgx_thread.h>
+#include <sgx_spinlock.h>
 
 #include "Enclave.h"
 #include "Enclave_t.h"  /* print_string */
 
 char* parent_message = "hello";  // parent process will write this message
 char* child_message = "goodbye"; // child process will then write this one
+void* QUEUE_POS; 
+struct queue_root* root; 
+
+//Exactly same structure but different type name. 
+struct queue_root {
+	struct queue_head *in_queue;
+	struct queue_head *out_queue;
+//	pthread_spinlock_t lock;
+	//pthread_mutex_t lock;
+	sgx_spinlock_t lock;
+};
+
+#ifndef _cas
+# define _cas(ptr, oldval, newval) \
+         __sync_bool_compare_and_swap(ptr, oldval, newval)
+#endif
+
+
+void INIT_QUEUE_HEAD(struct queue_head *head)
+{
+	head->next = (struct queue_head*)QUEUE_POS;
+}
+
+void queue_put(struct queue_head *new_node,
+	       struct queue_root *root)
+{
+	while (1) {
+		struct queue_head *in_queue = root->in_queue;
+		new_node->next = in_queue;
+		if (_cas(&root->in_queue, in_queue, new_node)) {
+			break;
+		}
+	}
+}
+
+struct queue_head *queue_get(struct queue_root *root)
+{
+//	pthread_spin_lock(&root->lock);
+	//pthread_mutex_lock(&root->lock);
+	sgx_spin_lock(&root->lock);
+
+	if (!root->out_queue) {
+		while (1) {
+			struct queue_head *head = root->in_queue;
+			if (!head) {
+				break;
+			}
+			if (_cas(&root->in_queue, head, NULL)) {
+				// Reverse the order
+				while (head) {
+					struct queue_head *next = head->next;
+					head->next = root->out_queue;
+					root->out_queue = head;
+					head = next;
+				}
+				break;
+			}
+		}
+	}
+
+	struct queue_head *head = root->out_queue;
+	if (head) {
+		root->out_queue = head->next;
+	}
+//	pthread_spin_unlock(&root->lock);
+	//pthread_mutex_unlock(&root->lock);
+	sgx_spin_unlock(&root->lock);
+	return head;
+}
+
+void initialize_queue(void *buf){
+	root = (struct queue_root*)buf;	
+	QUEUE_POS = (struct queue_root *)(buf + sizeof(struct queue_head));	
+}
 
 void ecall_test_consumer(void *buf)
 {
-	printf("Child read: %s\n", (char *)buf);
-	memcpy(buf, child_message, sizeof(child_message));
-	printf("Child wrote: %s\n", (char *)buf);
+	initialize_queue(buf);
+
+	int cnt = 0, total = 128;
+	struct queue_head* head = NULL;
+	while(total){
+		cnt++;
+		if(cnt > 3)
+			sleep(1);
+		head = queue_get(root);	
+		if(head != NULL)
+		{
+			printf("%s\n", head->buf);
+			cnt=0;
+			total--;
+			head = NULL;
+		}
+	}
+
+//	printf("Child read: %s\n", (char *)buf);
+//	memcpy(buf, child_message, sizeof(child_message));
+//	printf("Child wrote: %s\n", (char *)buf);
 }
 
 void ecall_test_producer(void *buf)
 {
-	printf("Parent read: %s\n", (char *)buf);
-	sleep(1);
-	printf("After 1s, parent read: %s\n", (char *)buf);
+	int i;
+	initialize_queue(buf);
+	printf("Put start\n");
+	for (i=0; i < 128; i++) {
+		struct queue_head *item = (struct queue_head*)((void *)QUEUE_POS + i*sizeof(struct queue_head));
+		INIT_QUEUE_HEAD(item);
+		snprintf(item->buf, 128, "i = %d", i);
+		queue_put(item, root);
+		//printf("Put %s\n", item->buf);
+	}
+	printf("Put done\n");
+//	sleep(1);
+//	printf("After 1s, parent read: %s\n", (char *)buf);
 }
 
 void sleep(int time)

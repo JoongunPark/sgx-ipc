@@ -40,6 +40,21 @@
 extern "C" {
 #endif
 
+struct queue_root;
+
+struct queue_head {
+	struct queue_head *next;
+	char buf[128];
+};
+
+//struct queue_root *ALLOC_QUEUE_ROOT();
+void INIT_QUEUE_HEAD(struct queue_head *head);
+
+void queue_put(struct queue_head *new_node,
+	       struct queue_root *root);
+
+struct queue_head *queue_get(struct queue_root *root);
+
 void printf(const char *fmt, ...);
 void sleep(int time);
 
