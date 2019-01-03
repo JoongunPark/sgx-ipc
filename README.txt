@@ -28,3 +28,9 @@ How to Build/Execute the Sample Code
     $ ./app
 4. Remember to "make clean" before switching build mode
 
+References 
+
+https://kldp.org/node/107186
+http://sonseungha.tistory.com/425
+https://github.com/intel/linux-sgx/blob/master/sdk/cpprt/linux/pthread_compat.h
+https://idea.popcount.org/2012-09-11-concurrent-queue-in-c/
