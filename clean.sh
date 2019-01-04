@@ -1,3 +1,7 @@
 make clean
 make SGX_MODE=HW
-./app
+
+for i in {2..1000}
+do
+	./app
+done

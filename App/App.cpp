@@ -44,9 +44,14 @@
 
 #include <sys/mman.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
+
+int mem_size;
+void* shmem;
 
 typedef struct _sgx_errlist_t {
     sgx_status_t err;
@@ -233,7 +238,8 @@ void ocall_print_string(const char *str)
 void ocall_sleep(int time)
 {
 	//usleep(time);
-	usleep(10);
+	msync(shmem, mem_size, MS_SYNC);
+	//usleep(10);
 }
 
 void* create_shared_memory(size_t size) {
@@ -297,39 +303,44 @@ int SGX_CDECL main(int argc, char *argv[])
 
     char* parent_message = "hello";  // parent process will write this message
     char* child_message = "goodbye"; // child process will then write this one
-  
-    void* shmem = create_shared_memory(sizeof(struct queue_root) 
-					+ sizeof(struct queue_head) * 1024);
-  
+    mem_size =  sizeof(struct queue_root) + sizeof(struct queue_head) * 1024;
+    shmem = create_shared_memory(mem_size);
     memcpy(shmem, parent_message, sizeof(parent_message));
   
+    /*  IMPORTANT ALLOC_QUEUE_ROOT should be done before each process starts to run */ 
+    ALLOC_QUEUE_ROOT(shmem);
     int pid = fork();
   
-    if (pid == 0) {
-		//Producer enclave
-	    if(initialize_enclave() < 0){
-	        printf("Enter a character before exit ...\n");
-	        getchar();
-	        return -1; 
-	    }
-		ALLOC_QUEUE_ROOT(shmem);
-		ecall_test_producer(global_eid, shmem);
+    if (pid < 0)
+    {
+        perror("FORK ERROR :");
+        exit(0);
+    }    
 
+    if (pid == 0) {
 	   printf("My process ID : %d\n", getpid());
 	   printf("My parent's ID: %d\n", getppid());
-  
-    } else {
 		//Consumer enclave
 	    if(initialize_enclave() < 0){
 	        printf("Enter a character before exit ...\n");
 	        getchar();
 	        return -1; 
 	    }
-		ALLOC_QUEUE_ROOT(shmem);
-		ecall_test_consumer(global_eid, shmem);
-
+	    ecall_test_consumer(global_eid, shmem);
+    } else {
 	   printf("My process ID : %d\n", getpid());
 	   printf("My parent's ID: %d\n", getppid());
+		//Producer enclave
+	    if(initialize_enclave() < 0){
+	        printf("Enter a character before exit ...\n");
+	        getchar();
+	        return -1; 
+	    }
+	    ecall_test_producer(global_eid, shmem);
+	    if(msync(shmem, mem_size, MS_SYNC))
+		printf("something wrong\n");
+	    int returnStatus;    
+    	    waitpid(pid, &returnStatus, 0);
     }
     sgx_destroy_enclave(global_eid);
     

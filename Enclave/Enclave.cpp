@@ -67,6 +67,7 @@ void INIT_QUEUE_HEAD(struct queue_head *head)
 void queue_put(struct queue_head *new_node,
 	       struct queue_root *root)
 {
+	//sgx_spin_lock(&root->lock);
 	while (1) {
 		struct queue_head *in_queue = root->in_queue;
 		new_node->next = in_queue;
@@ -74,6 +75,8 @@ void queue_put(struct queue_head *new_node,
 			break;
 		}
 	}
+	//sleep(1);
+	//sgx_spin_unlock(&root->lock);
 }
 
 struct queue_head *queue_get(struct queue_root *root)
@@ -86,6 +89,7 @@ struct queue_head *queue_get(struct queue_root *root)
 		while (1) {
 			struct queue_head *head = root->in_queue;
 			if (!head) {
+		//		printf("1n");
 				break;
 			}
 			if (_cas(&root->in_queue, head, NULL)) {
@@ -96,13 +100,16 @@ struct queue_head *queue_get(struct queue_root *root)
 					root->out_queue = head;
 					head = next;
 				}
+//				printf("2n");
 				break;
 			}
+//				printf("3n");
 		}
 	}
 
 	struct queue_head *head = root->out_queue;
 	if (head) {
+//				printf("4n");
 		root->out_queue = head->next;
 	}
 //	pthread_spin_unlock(&root->lock);
@@ -119,36 +126,38 @@ void initialize_queue(void *buf){
 void ecall_test_consumer(void *buf)
 {
 	initialize_queue(buf);
-
-	int cnt = 0, total = 700;
+	int cnt = 0, total = 500;
 	struct queue_head* head = NULL;
+	printf("consumer %x %x\n", root, root->in_queue);
 	while(total){
 		cnt++;
 		if(cnt > 3){
-			sleep(1);
 			cnt = 0;
+			sleep(1);
 		}
 		head = queue_get(root);	
 		if(head != NULL)
 		{
-			printf("%s\n", head->buf);
 			cnt=0;
+			printf("%s\n", head->buf);
 			total--;
 			head = NULL;
 		}
 	}
+	printf("pop done\n");
 
-//	printf("Child read: %s\n", (char *)buf);
+	//printf("Child read: %s\n", (char *)buf);
 //	memcpy(buf, child_message, sizeof(child_message));
-//	printf("Child wrote: %s\n", (char *)buf);
+	//printf("Child wrote: %s\n", (char *)buf);
 }
 
 void ecall_test_producer(void *buf)
 {
 	int i;
 	initialize_queue(buf);
+	printf("producer %x %x\n", root, root->in_queue);
 	printf("Put start\n");
-	for (i=0; i < 700; i++) {
+	for (i=0; i < 500; i++) {
 		struct queue_head *item = (struct queue_head*)((void *)QUEUE_POS + i*sizeof(struct queue_head));
 		INIT_QUEUE_HEAD(item);
 		snprintf(item->buf, 128, "Pop i = %d", i);
@@ -156,7 +165,7 @@ void ecall_test_producer(void *buf)
 		printf("Put %s\n", item->buf);
 	}
 	printf("Put done\n");
-//	sleep(1);
+	sleep(1);
 //	printf("After 1s, parent read: %s\n", (char *)buf);
 }
 

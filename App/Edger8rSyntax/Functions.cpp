@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2017 Intel Corporation. All rights reserved.
+ * Copyright (C) 2011-2018 Intel Corporation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,10 +43,6 @@ void edger8r_function_attributes(void)
 {
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
 
-    ret = ecall_function_calling_convs(global_eid);
-    if (ret != SGX_SUCCESS)
-        abort();
-    
     ret = ecall_function_public(global_eid);
     if (ret != SGX_SUCCESS)
         abort();
